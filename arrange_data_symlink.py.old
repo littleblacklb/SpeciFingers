@@ -1,0 +1,95 @@
+"""
+Arrange data using symbolic links instead of copying.
+Saves disk space and is much faster than shutil.copytree.
+
+Replaces arrange_data.py with symlink-based organization.
+"""
+
+import os
+from pathlib import Path
+
+INPUT_DIR = "jpg_video"
+OUTPUT_DIR = "jpg_video_arrange"
+
+
+def create_symlink(src: Path, dst: Path):
+    """Create a symbolic link, handling Windows compatibility."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+
+    # Remove existing link/file if present
+    if dst.exists() or dst.is_symlink():
+        if dst.is_dir() and not dst.is_symlink():
+            import shutil
+
+            shutil.rmtree(dst)
+        else:
+            dst.unlink()
+
+    # Create symlink (requires admin rights on Windows or Developer Mode enabled)
+    try:
+        dst.symlink_to(src.resolve(), target_is_directory=True)
+    except OSError as e:
+        if "privilege" in str(e).lower():
+            print(
+                f"Warning: Cannot create symlink (need admin rights). Falling back to junction."
+            )
+            # Fall back to directory junction on Windows
+            import subprocess
+
+            subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(dst), str(src.resolve())],
+                check=True,
+                capture_output=True,
+            )
+        else:
+            raise
+
+
+def main():
+    input_path = Path(INPUT_DIR)
+    output_path = Path(OUTPUT_DIR)
+
+    if not input_path.exists():
+        print(f"Error: {INPUT_DIR} not found")
+        return
+
+    # Get all user directories
+    user_dirs = sorted([d for d in input_path.iterdir() if d.is_dir()])
+    user_ids = [d.name for d in user_dirs]
+
+    print(f"Found {len(user_ids)} users: {user_ids}")
+
+    for test_user_idx, test_user_id in enumerate(user_ids):
+        print(f"\nArranging for user {test_user_id} as test set...")
+
+        user_output = output_path / test_user_id
+        train_dir = user_output / "First_train"
+        test_dir = user_output / "First_test"
+
+        # Create test set symlinks (current user)
+        test_user_path = input_path / test_user_id
+        for video_dir in test_user_path.iterdir():
+            if video_dir.is_dir() and video_dir.name.startswith("v_"):
+                dst = test_dir / video_dir.name
+                create_symlink(video_dir, dst)
+
+        # Create train set symlinks (all other users)
+        for train_user_id in user_ids:
+            if train_user_id == test_user_id:
+                continue
+
+            train_user_path = input_path / train_user_id
+            for video_dir in train_user_path.iterdir():
+                if video_dir.is_dir() and video_dir.name.startswith("v_"):
+                    dst = train_dir / video_dir.name
+                    create_symlink(video_dir, dst)
+
+        train_count = len(list(train_dir.iterdir())) if train_dir.exists() else 0
+        test_count = len(list(test_dir.iterdir())) if test_dir.exists() else 0
+        print(f"  Train: {train_count} videos, Test: {test_count} videos")
+
+    print(f"\nData arrangement complete: {output_path}")
+
+
+if __name__ == "__main__":
+    main()

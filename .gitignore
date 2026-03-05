@@ -1,0 +1,6 @@
+raw_log_data*
+packed_data*
+processed_frames*
+results*
+training_results.txt
+__pycache__

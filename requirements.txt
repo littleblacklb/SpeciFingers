@@ -1,0 +1,10 @@
+numpy
+torch
+torchvision
+scikit-learn
+kornia
+matplotlib
+Pillow
+tqdm
+psutil
+fastervit
