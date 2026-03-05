@@ -205,7 +205,12 @@ class EfficientViTCNNEncoder(nn.Module):
 
         # Load pretrained EfficientViT with classification head removed
         self.backbone = timm.create_model(model_name, pretrained=True, num_classes=0)
-        num_features = self.backbone.num_features
+
+        # Detect actual output dimension via dummy forward pass
+        # (timm's num_features can be inaccurate for some architectures)
+        with torch.no_grad():
+            dummy = torch.zeros(1, 3, 224, 224)
+            num_features = self.backbone(dummy).shape[1]
         print(f"Loaded EfficientViT '{model_name}' with {num_features}-dim features")
 
         # Freeze backbone
