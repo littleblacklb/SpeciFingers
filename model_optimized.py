@@ -33,6 +33,7 @@ from functions_optimized import (
     AlexCNNEncoder,
     ViTCNNEncoder,
     FasterViTCNNEncoder,
+    EfficientViTCNNEncoder,
     DecoderRNN,
 )
 
@@ -192,7 +193,7 @@ def main():
     parser.add_argument(
         "--encoder",
         type=str,
-        choices=["alexnet", "vit", "fastervit"],
+        choices=["alexnet", "vit", "fastervit", "efficientvit"],
         default="alexnet",
         help="Encoder backbone: 'alexnet' (default), 'vit', or 'fastervit'",
     )
@@ -218,18 +219,20 @@ def main():
         batch_size = 4 if args.test else 32  # ViT: reduced to 32 to prevent OOM
     elif args.encoder == "fastervit":
         batch_size = 4 if args.test else 48  # FasterViT-0: lighter than ViT-B
+    elif args.encoder == "efficientvit":
+        batch_size = 4 if args.test else 48  # EfficientViT-B1: lightweight
     else:
         batch_size = 4 if args.test else 96  # AlexNet: can go higher
     learning_rate = 1e-3
     log_interval = 1 if args.test else 10
     grad_accum_steps = (
-        3 if args.encoder == "vit" else (2 if args.encoder == "fastervit" else 2)
+        3 if args.encoder == "vit" else 2
     )  # Effective batch size control
     start_epoch = args.resume  # Resume from this epoch
 
     # Optimized loading params - Adjusted for 96GB RAM
     # Previously reduced for ViT/FasterViT to prevent OOM, now increased
-    if args.encoder == "vit" or args.encoder == "fastervit":
+    if args.encoder in ("vit", "fastervit", "efficientvit"):
         num_workers = 4  # Increased from 0 to utilize CPU
         max_cache_gb = 60  # Increased to 60GB (leaves ~36GB for system/models)
     else:
@@ -289,6 +292,14 @@ def main():
                 drop_p=dropout_p,
                 CNN_embed_dim=CNN_embed_dim,
                 model_name="faster_vit_0_224",
+            ).to(device)
+        elif args.encoder == "efficientvit":
+            print("Using EfficientViT-B1 encoder")
+            cnn_encoder = EfficientViTCNNEncoder(
+                fc_hidden1=CNN_fc_hidden1,
+                fc_hidden2=CNN_fc_hidden2,
+                drop_p=dropout_p,
+                CNN_embed_dim=CNN_embed_dim,
             ).to(device)
         else:
             print("Using AlexNet encoder")

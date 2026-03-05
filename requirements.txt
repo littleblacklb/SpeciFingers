@@ -8,3 +8,4 @@ Pillow
 tqdm
 psutil
 fastervit
+timm

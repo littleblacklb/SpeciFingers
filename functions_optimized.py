@@ -178,6 +178,68 @@ class FasterViTCNNEncoder(nn.Module):
         return cnn_embed_seq
 
 
+class EfficientViTCNNEncoder(nn.Module):
+    """
+    EfficientViT-based encoder for video sequences.
+    Uses pretrained EfficientViT from timm as backbone.
+    Default model: efficientvit_b1.r224_in1k (~9M params, 224x224 input).
+    """
+
+    def __init__(
+        self,
+        fc_hidden1=512,
+        fc_hidden2=256,
+        drop_p=0.3,
+        CNN_embed_dim=256,
+        model_name="efficientvit_b1.r224_in1k",
+    ):
+        super(EfficientViTCNNEncoder, self).__init__()
+
+        self.fc_hidden1, self.fc_hidden2 = fc_hidden1, fc_hidden2
+        self.drop_p = drop_p
+
+        try:
+            import timm
+        except ImportError:
+            raise ImportError("Please install timm: pip install timm")
+
+        # Load pretrained EfficientViT with classification head removed
+        self.backbone = timm.create_model(model_name, pretrained=True, num_classes=0)
+        num_features = self.backbone.num_features
+        print(f"Loaded EfficientViT '{model_name}' with {num_features}-dim features")
+
+        # Freeze backbone
+        for param in self.backbone.parameters():
+            param.requires_grad = False
+
+        # Trainable projection head
+        self.fc1 = nn.Linear(num_features, fc_hidden1)
+        self.bn1 = nn.BatchNorm1d(fc_hidden1, momentum=0.01)
+        self.fc2 = nn.Linear(fc_hidden1, fc_hidden2)
+        self.bn2 = nn.BatchNorm1d(fc_hidden2, momentum=0.01)
+        self.fc3 = nn.Linear(fc_hidden2, CNN_embed_dim)
+
+    def forward(self, x_3d):
+        cnn_embed_seq = []
+        for t in range(x_3d.size(1)):
+            with torch.no_grad():
+                x = self.backbone(x_3d[:, t, :, :, :])  # (batch, num_features)
+
+            x = self.bn1(self.fc1(x))
+            x = F.relu(x)
+            x = self.bn2(self.fc2(x))
+            x = F.relu(x)
+            x = F.dropout(x, p=self.drop_p, training=self.training)
+            x = self.fc3(x)
+
+            cnn_embed_seq.append(x)
+
+        # Shape: (batch, time_step, CNN_embed_dim)
+        cnn_embed_seq = torch.stack(cnn_embed_seq, dim=0).transpose_(0, 1)
+
+        return cnn_embed_seq
+
+
 class Dataset_CRNN_Fast(data.Dataset):
     """
     Optimized dataset that loads pre-packed .npz files.
