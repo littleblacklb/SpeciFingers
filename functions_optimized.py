@@ -28,6 +28,7 @@ from functions import (
     ResCNNEncoder,
     AlexCNNEncoder,
     DecoderRNN,
+    DecoderPool,
     CRNN_final_prediction,
     CRNN_final_prediction_R,
 )

@@ -35,6 +35,7 @@ from functions_optimized import (
     FasterViTCNNEncoder,
     EfficientViTCNNEncoder,
     DecoderRNN,
+    DecoderPool,
 )
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -197,6 +198,13 @@ def main():
         default="alexnet",
         help="Encoder backbone: 'alexnet' (default), 'vit', or 'fastervit'",
     )
+    parser.add_argument(
+        "--decoder",
+        type=str,
+        choices=["lstm", "pool"],
+        default="lstm",
+        help="Temporal decoder: 'lstm' (default) or 'pool' (global average pooling)",
+    )
     args = parser.parse_args()
 
     # ===== Configuration =====
@@ -310,14 +318,24 @@ def main():
                 CNN_embed_dim=CNN_embed_dim,
             ).to(device)
 
-        rnn_decoder = DecoderRNN(
-            CNN_embed_dim=CNN_embed_dim,
-            h_RNN_layers=RNN_hidden_layers,
-            h_RNN=RNN_hidden_nodes,
-            h_FC_dim=RNN_FC_dim,
-            drop_p=dropout_p,
-            num_classes=k,
-        ).to(device)
+        if args.decoder == "pool":
+            print("Using Global Average Pooling decoder")
+            rnn_decoder = DecoderPool(
+                CNN_embed_dim=CNN_embed_dim,
+                h_FC_dim=RNN_FC_dim,
+                drop_p=dropout_p,
+                num_classes=k,
+            ).to(device)
+        else:
+            print("Using LSTM decoder")
+            rnn_decoder = DecoderRNN(
+                CNN_embed_dim=CNN_embed_dim,
+                h_RNN_layers=RNN_hidden_layers,
+                h_RNN=RNN_hidden_nodes,
+                h_FC_dim=RNN_FC_dim,
+                drop_p=dropout_p,
+                num_classes=k,
+            ).to(device)
 
         # Multi-GPU support
         if torch.cuda.device_count() > 1:

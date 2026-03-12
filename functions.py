@@ -317,5 +317,28 @@ class DecoderRNN(nn.Module):
 
         return x
 
-## ---------------------- end of CRNN module ---------------------- ##
 
+class DecoderPool(nn.Module):
+    def __init__(
+        self, CNN_embed_dim=300, h_FC_dim=128, drop_p=0.3, num_classes=50
+    ):
+        super(DecoderPool, self).__init__()
+
+        self.CNN_embed_dim = CNN_embed_dim
+        self.h_FC_dim = h_FC_dim
+        self.drop_p = drop_p
+        self.num_classes = num_classes
+
+        self.fc1 = nn.Linear(self.CNN_embed_dim, self.h_FC_dim)
+        self.fc2 = nn.Linear(self.h_FC_dim, self.num_classes)
+
+    def forward(self, x_seq):
+        # Global average pooling over temporal dimension: (batch, time, embed) -> (batch, embed)
+        x = x_seq.mean(dim=1)
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = F.dropout(x, p=self.drop_p, training=self.training)
+        x = self.fc2(x)
+        return x
+
+## ---------------------- end of CRNN module ---------------------- ##
